@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>知时 · 学习工作台</title>
+<meta name="description" content="记录每次学习，查看各科投入，让进步看得见。">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/style.css">
+<script src="/assets/app.js" defer></script>
+</head>
+<body>
+<svg class="symbols" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
+<symbol id="book" viewBox="0 0 24 24"><path d="M12 5v15M12 5C9 3 5 3 2 4v15c3-1 7-1 10 1 3-2 7-2 10-1V4c-3-1-7-1-10 1Z"/></symbol>
+<symbol id="grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol>
+<symbol id="list" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></symbol>
+<symbol id="clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+<symbol id="plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+<symbol id="arrow" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+<symbol id="edit" viewBox="0 0 24 24"><path d="m14 5 5 5M4 20l5-1L21 7a2 2 0 0 0-4-4L5 15l-1 5Z"/></symbol>
+<symbol id="trash" viewBox="0 0 24 24"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/></symbol>
+<symbol id="close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+</defs></svg>
+<a class="skip" href="#main">跳到主要内容</a>
+<aside class="sidebar">
+<a class="brand" href="#overview"><span class="brand-mark"><svg><use href="#book"/></svg></span><span>知时<span class="brand-sub">学习工作台</span></span></a>
+<div class="nav-label">我的空间</div>
+<nav aria-label="主要导航">
+<a class="nav-item active" href="#overview" data-view="overview" aria-current="page"><svg><use href="#grid"/></svg>学习概览</a>
+<a class="nav-item" href="#records" data-view="records"><svg><use href="#list"/></svg>学习记录</a>
+</nav>
+<div class="sidebar-note"><span class="note-line"></span><p>每一次投入，<br>都是向前的一小步。</p><span>专注当下，积累成长</span></div>
+<div class="profile"><span class="avatar">我</span><div><strong>我的学习空间</strong><span>记录 · 积累 · 回顾</span></div></div>
+</aside>
+<main id="main">
+<div class="topline"><span>我的空间 <span class="slash">/</span> <span id="breadcrumb">学习概览</span></span><time id="today"></time></div>
+<header class="page-heading"><div><p class="eyebrow">LEARNING WORKSPACE</p><h1 id="page-title">学习概览</h1><p id="page-subtitle">把投入记下来，让每一步成长都有迹可循。</p></div><button class="primary" id="add-record"><svg><use href="#plus"/></svg>新增记录</button></header>
+<form id="filters" class="filters">
+<div id="subject-filter" hidden><label for="filter-subject">科目</label><select id="filter-subject"><option value="">全部科目</option></select></div>
+<div><label for="start-date">开始日期</label><input type="date" id="start-date"></div>
+<span class="date-separator" aria-hidden="true">—</span>
+<div><label for="end-date">结束日期</label><input type="date" id="end-date"></div>
+<div class="filter-actions"><button class="secondary" type="submit">查询</button><button class="text-button" id="reset-filters" type="button">重置</button></div><span class="range-label" id="range-label">全部时间</span>
+</form>
+<p id="filter-error" class="inline-error" role="alert" hidden></p>
+<div id="status" class="status" role="status" hidden></div>
+<div id="error-panel" class="error-panel" role="alert" hidden><strong>暂时无法加载学习数据</strong><p id="error-detail"></p><button class="secondary" id="retry">重新加载</button></div>
+<div id="content" hidden>
+<section id="overview-view" aria-label="学习概览">
+<div class="metrics">
+<article class="metric featured"><div class="metric-top"><span>累计学习时长</span><svg><use href="#clock"/></svg></div><div class="metric-value"><strong id="total-hours">0</strong><span>小时</span></div><p id="total-minutes">共 0 分钟的专注投入</p><span class="metric-decoration" aria-hidden="true"></span></article>
+<article class="metric"><div class="metric-top"><span>学习记录</span><span class="metric-icon"><svg><use href="#list"/></svg></span></div><div class="metric-value"><strong id="record-count">0</strong><span>条</span></div><p>每一次学习，都值得被记录</p></article>
+<article class="metric"><div class="metric-top"><span>学习科目</span><span class="metric-icon amber"><svg><use href="#book"/></svg></span></div><div class="metric-value"><strong id="subject-count">0</strong><span>科</span></div><p>探索不同领域，积累更多可能</p></article>
+</div>
+<div class="overview-grid">
+<section class="panel chart-panel"><div class="panel-heading"><div><h2>学习时间分布</h2><p>看看你的时间，都投入到了哪里</p></div><span class="unit-tag">单位：分钟</span></div><div id="chart" class="chart" aria-label="各科学习时长"></div></section>
+<section class="panel breakdown-panel"><div class="panel-heading"><div><h2>科目一览</h2><p>按学习时长排序</p></div></div><div id="subject-breakdown"></div></section>
+</div>
+<section class="panel recent-panel"><div class="panel-heading"><div><h2>最近的学习</h2><p>回顾你留下的学习足迹</p></div><a href="#records" class="view-all">全部记录<svg><use href="#arrow"/></svg></a></div><div id="recent-records"></div></section>
+</section>
+<section id="records-view" class="panel records-panel" hidden aria-label="学习记录"><div class="panel-heading"><div><h2>记录列表 <span class="count-badge" id="list-count">0</span></h2><p>保存收获，也记下遇到的问题</p></div><span class="sort-note">按学习日期倒序</span></div><div class="table-scroll"><table><thead><tr><th>日期</th><th>科目 / 学习内容</th><th>时长</th><th>遇到的困难</th><th>后续计划</th><th class="actions-heading">操作</th></tr></thead><tbody id="records-body"></tbody></table></div><div id="records-empty" class="empty" hidden><svg><use href="#book"/></svg><h3>这里还没有学习记录</h3><p>试试调整筛选条件，或记录一次新的学习。</p></div></section>
+</div>
+<footer>知时 <span>·</span> 让学习留下足迹</footer>
+</main>
+<dialog id="record-dialog" aria-labelledby="dialog-title"><form id="record-form"><div class="dialog-heading"><div><p class="eyebrow">LEARNING RECORD</p><h2 id="dialog-title">新增学习记录</h2></div><button class="icon-button" type="button" data-close="record-dialog" aria-label="关闭"><svg><use href="#close"/></svg></button></div>
+<div class="form-grid"><label>科目 <span class="required">*</span><input name="Subject" list="subjects" required maxlength="100" placeholder="例如：Python" autocomplete="off"></label><label>学习日期 <span class="required">*</span><input name="Date" type="date" required></label><label class="full">学习内容 <span class="required">*</span><input name="Topic" required maxlength="100" placeholder="今天学习了什么？"></label><label class="full">学习时长（分钟） <span class="required">*</span><input name="Duration_minutes" type="number" min="0" step="1" required placeholder="例如：60"></label><label class="full">遇到的困难<textarea name="Difficulty" maxlength="1000" rows="3" placeholder="有哪些还没弄明白的地方？（选填）"></textarea></label><label class="full">后续计划<textarea name="Plan_Comment" maxlength="1000" rows="3" placeholder="下一步想练习或巩固什么？（选填）"></textarea></label></div><datalist id="subjects"></datalist><p class="inline-error" id="save-error" role="alert" hidden></p><div class="dialog-actions"><button class="secondary" type="button" data-close="record-dialog">取消</button><button class="primary" id="save-record" type="submit">保存记录</button></div></form></dialog>
+<dialog id="delete-dialog" aria-labelledby="delete-title"><div class="dialog-heading"><h2 id="delete-title">删除这条学习记录？</h2><button class="icon-button" data-close="delete-dialog" aria-label="关闭"><svg><use href="#close"/></svg></button></div><p id="delete-description"></p><p class="muted">删除后无法恢复，请确认这条记录不再需要。</p><p id="delete-error" class="inline-error" role="alert" hidden></p><div class="dialog-actions"><button class="secondary" data-close="delete-dialog" autofocus>保留记录</button><button class="danger" id="confirm-delete">确认删除</button></div></dialog>
+<div id="toast" role="status" class="toast" hidden></div>
+</body></html>
