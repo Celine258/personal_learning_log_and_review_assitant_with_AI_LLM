@@ -4,7 +4,7 @@ from pymysql.cursors import DictCursor
 
 def get_connection(database="test"):
     if not os.environ.get("User") or not os.environ.get("Passwd"):
-        raise RuntimeError("未配置数据库账号密码，请运行 python start.py 启动服务")
+        raise RuntimeError("未配置数据库账号密码")
     return pymysql.connect(
         host="localhost",
         user=os.environ['User'],

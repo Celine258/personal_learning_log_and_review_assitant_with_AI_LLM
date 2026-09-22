@@ -1,10 +1,12 @@
 import requests
+import os
+API_Key = os.environ["API-Key"]
 def deepseek_api(msg):
     try:
         response = requests.post(
             url= "https://api.deepseek.com/chat/completions",
             headers= {
-                "Authorization": "Bearer <API-Key>",
+                "Authorization": f"Bearer {API_Key}",
                 "Content-Type" : "application/json"
             },
             json={
