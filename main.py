@@ -4,6 +4,10 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from data_base import get_connection
+from deepseek import deepseek_api
+import json
+from save_load import save_data,load_data
+
 
 logging.basicConfig(
     filename= "D:/Work/个人学习记录和复盘助手/main.log",
@@ -281,6 +285,61 @@ def get_record_list(
         conn.close()
     return data
 
+@app.post("/study/review")
+def review(
+    start_date:datetime.date | None = None,
+    end_date:datetime.date | None = None,
+):
+    if start_date and end_date and start_date > end_date:
+        raise HTTPException(status_code=400, detail="开始日期不得大于结束日期")
+    conn = get_connection()
+    with conn.cursor() as cursor:
+
+        try:
+            sql = """
+                SELECT * FROM study_record
+                WHERE 1=1
+            """
+            params = []
+            if start_date is not None:
+                sql += " AND Date >= %s "
+                params.append(start_date)
+            if end_date is not None:
+                sql += " AND Date <= %s "
+                params.append(end_date)
+            sql += " ORDER BY Date "
+            cursor.execute(sql, params)
+            data = cursor.fetchall()
+        except Exception as error:
+            logging.exception("查询数据失败")
+            raise HTTPException(status_code=500, detail="查询数据失败") from error
+        finally:
+            conn.close()
+    if not data:
+        return {"message": "没有学习记录"}
+    with open("D:/Work/个人学习记录和复盘助手/personality.txt", "r", encoding="utf-8") as f:
+        personality = f.read()
+    system = {
+    "role":"system",
+    "content":personality
+    }
+    question = {
+        "role":"user",
+        "content":"请根据以下学习记录生成复盘：\n"+json.dumps(data, ensure_ascii=False, default=str)
+    }
+    msg = [system,question]
+    reply = deepseek_api(msg)
+    history = load_data()
+    history.append(question)
+    history.append({
+        "role":"assistant",
+        "content":reply
+    })
+    save_data(history)
+    return {"review": reply}
+
+        
+            
 
 # 网页与接口共用当前服务，前端文件以 main.py 所在目录为基准查找。
 from pathlib import Path

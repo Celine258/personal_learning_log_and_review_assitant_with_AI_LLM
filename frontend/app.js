@@ -10,8 +10,8 @@ function format(value) {return number.format(Number(value) || 0);}
 function empty(message, hint = '') {const box = element('div', 'empty'); box.append(icon('book'), element('h3', '', message)); if(hint) box.append(element('p', '', hint)); return box;}
 function localDate() {const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
 function notify(message) {$('toast').textContent = message; $('toast').hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => {$('toast').hidden = true;}, 4200);}
-async function api(path, options = {}) {
-  const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 15000);
+async function api(path, options = {}, timeoutMs = 15000) {
+  const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(path, {...options, signal: controller.signal, headers: options.body ? {'Content-Type':'application/json'} : {}});
     const text = await response.text(); let data;
@@ -45,6 +45,7 @@ function updateSubjects(rows) {
   $('filter-subject').value = selected;
 }
 async function loadData() {
+  if (state.view === 'review') return;
   let filters;
   try {filters = getFilters(); $('filter-error').hidden = true;}
   catch(error) {$('filter-error').textContent=error.message; $('filter-error').hidden=false; return;}
@@ -136,16 +137,113 @@ for(const button of document.querySelectorAll('[data-close]'))button.addEventLis
 $('record-dialog').addEventListener('cancel',event=>{if(state.saving)event.preventDefault();});
 $('delete-dialog').addEventListener('cancel',event=>{if(state.deleting)event.preventDefault();});
 function setView(){
-  state.view=location.hash==='#records'?'records':'overview';const records=state.view==='records';
-  $('overview-view').hidden=records;$('records-view').hidden=!records;$('subject-filter').hidden=!records;
-  $('page-title').textContent=records?'学习记录':'学习概览';$('breadcrumb').textContent=$('page-title').textContent;
-  $('page-subtitle').textContent=records?'记录学过的内容，也留下下一步的方向。':'把投入记下来，让每一步成长都有迹可循。';
+  state.view = location.hash === '#review' ? 'review' : location.hash === '#records' ? 'records' : 'overview';
+  const records = state.view === 'records', review = state.view === 'review';
+  $('overview-view').hidden = records || review; $('records-view').hidden = !records;
+  $('review-view').hidden = !review; $('subject-filter').hidden = !records;
+  $('filters').hidden = review; $('add-record').hidden = review;
+  const titles = {overview: '学习概览', records: '学习记录', review: 'AI 复盘'};
+  const subtitles = {overview: '把投入记下来，让每一步成长都有迹可循。', records: '记录学过的内容，也留下下一步的方向。', review: '回顾学过的内容，把下一步走得更清楚。'};
+  $('page-title').textContent = titles[state.view]; $('breadcrumb').textContent = titles[state.view];
+  $('page-subtitle').textContent = subtitles[state.view];
   for(const link of document.querySelectorAll('[data-view]')){const active=link.dataset.view===state.view;link.classList.toggle('active',active);if(active)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');}
-  loadData();
+  if (review) {
+    // 避免切页之前尚未完成的列表请求覆盖复盘页的加载状态。
+    state.loadId++; $('content').hidden = true; $('status').hidden = true;
+    $('error-panel').hidden = true; $('filter-error').hidden = true;
+    $('main').setAttribute('aria-busy','false');
+  } else { loadData(); }
 }
 $('filters').addEventListener('submit',event=>{event.preventDefault();loadData();});
 $('reset-filters').addEventListener('click',()=>{$('filters').reset();$('filter-subject').value='';loadData();});
 $('retry').addEventListener('click',loadData);$('add-record').addEventListener('click',()=>openRecord());
 window.addEventListener('hashchange',setView);
 $('today').textContent=new Intl.DateTimeFormat('zh-CN',{year:'numeric',month:'long',day:'numeric',weekday:'long'}).format(new Date());$('today').dateTime=localDate();
+
+// 复盘只在用户主动点击时发起，不随切页、刷新或日期变动自动调用模型。
+let reviewBusy = false;
+const reviewStates = ['placeholder', 'loading', 'empty', 'error', 'result'];
+function showReviewState(next) {
+  for (const name of reviewStates) $('review-' + name).hidden = name !== next;
+  $('review-feedback').setAttribute('aria-busy', String(next === 'loading'));
+}
+function appendReviewText(parent, text) {
+  // 只创建文本和明确允许的格式节点，模型返回的 HTML 不会执行。
+  for (const part of text.split(/(\*\*[^*\n]+\*\*|`[^`\n]+`)/g)) {
+    if (part.startsWith('**') && part.endsWith('**') && part.length > 4) parent.append(element('strong', '', part.slice(2, -2)));
+    else if (part.startsWith('`') && part.endsWith('`') && part.length > 2) parent.append(element('code', '', part.slice(1, -1)));
+    else parent.append(document.createTextNode(part));
+  }
+}
+function renderReview(text) {
+  const body = $('review-body'); body.replaceChildren();
+  let paragraph = null, list = null, code = null;
+  for (const line of text.replace(/\r\n/g, '\n').split('\n')) {
+    if (/^\s*```/.test(line)) {
+      paragraph = null; list = null;
+      if (code) code = null;
+      else {const pre = element('pre'); code = element('code'); pre.append(code); body.append(pre);}
+      continue;
+    }
+    if (code) {code.append(document.createTextNode(line + '\n')); continue;}
+    if (!line.trim()) {paragraph = null; list = null; continue;}
+    if (/^\s*(---+|\*\*\*+)\s*$/.test(line)) {body.append(element('hr')); paragraph = null; list = null; continue;}
+    const heading = line.match(/^\s*(#{1,6})\s+(.+)$/);
+    if (heading) {const node = element(heading[1].length <= 2 ? 'h3' : 'h4'); appendReviewText(node, heading[2]); body.append(node); paragraph = null; list = null; continue;}
+    const item = line.match(/^\s*(?:([-*+])|\d+[.)、])\s+(.+)$/);
+    if (item) {
+      const tag = item[1] ? 'ul' : 'ol';
+      if (!list || list.localName !== tag) {list = element(tag); body.append(list);}
+      const li = element('li'); appendReviewText(li, item[2]); list.append(li); paragraph = null; continue;
+    }
+    list = null;
+    if (!paragraph) {paragraph = element('p'); body.append(paragraph);} else paragraph.append(element('br'));
+    appendReviewText(paragraph, line);
+  }
+}
+async function generateReview() {
+  if (reviewBusy) return;
+  if (!$('review-form').reportValidity()) return;
+  const start = $('review-start').value, end = $('review-end').value;
+  if (start && end && start > end) {
+    $('review-validation').textContent = '开始日期不能晚于结束日期。'; $('review-validation').hidden = false; return;
+  }
+  $('review-validation').hidden = true;
+  const params = new URLSearchParams();
+  if (start) params.set('start_date', start);
+  if (end) params.set('end_date', end);
+  const range = start || end ? `${start || '最早记录'} 至 ${end || '不限结束日期'}` : '全部学习记录';
+  reviewBusy = true;
+  $('review-form').querySelectorAll('input, button').forEach(node => node.disabled = true);
+  $('retry-review').disabled = true; $('generate-label').textContent = '正在生成…';
+  $('review-loading-range').textContent = range; showReviewState('loading');
+  try {
+    const data = await api('/study/review' + (params.size ? '?' + params : ''), {method: 'POST'}, 90000);
+    // 接口新格式为 {review: ...}，同时兼容旧服务尚未重启时返回的字符串。
+    const review = typeof data === 'string' ? data : data?.review;
+    if (typeof review === 'string' && review.trim()) {
+      renderReview(review); $('review-result-range').textContent = range;
+      const now = new Date(); $('review-generated-at').dateTime = now.toISOString();
+      $('review-generated-at').textContent = '生成于 ' + now.toLocaleString('zh-CN', {month:'long', day:'numeric', hour:'2-digit', minute:'2-digit'});
+      showReviewState('result');
+    } else {
+      const message = data?.message ?? data?.messsage;
+      if (typeof message === 'string' && message.trim()) {$('review-empty-message').textContent = `${range}：${message}`; showReviewState('empty');}
+      else throw new Error('没有收到有效的复盘内容，请稍后重试。');
+    }
+  } catch (error) {
+    $('review-error-detail').textContent = error.message; showReviewState('error');
+  } finally {
+    reviewBusy = false; $('review-form').querySelectorAll('input, button').forEach(node => node.disabled = false);
+    $('retry-review').disabled = false; $('generate-label').textContent = '生成复盘';
+  }
+}
+$('review-form').addEventListener('submit', event => {event.preventDefault(); generateReview();});
+$('retry-review').addEventListener('click', generateReview);
+function clearReviewResult() {
+  if (reviewBusy) return;
+  $('review-validation').hidden = true; $('review-body').replaceChildren(); showReviewState('placeholder');
+}
+for (const id of ['review-start', 'review-end']) $(id).addEventListener('input', clearReviewResult);
+$('reset-review').addEventListener('click', () => {$('review-form').reset(); clearReviewResult();});
 setView();

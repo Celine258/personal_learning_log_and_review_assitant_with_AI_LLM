@@ -19,6 +19,7 @@
 <symbol id="edit" viewBox="0 0 24 24"><path d="m14 5 5 5M4 20l5-1L21 7a2 2 0 0 0-4-4L5 15l-1 5Z"/></symbol>
 <symbol id="trash" viewBox="0 0 24 24"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/></symbol>
 <symbol id="close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+<symbol id="sparkles" viewBox="0 0 24 24"><path d="m12 3 2.7 6.3L21 12l-6.3 2.7L12 21l-2.7-6.3L3 12l6.3-2.7L12 3ZM20 2v4M18 4h4"/></symbol>
 </defs></svg>
 <a class="skip" href="#main">跳到主要内容</a>
 <aside class="sidebar">
@@ -27,6 +28,7 @@
 <nav aria-label="主要导航">
 <a class="nav-item active" href="#overview" data-view="overview" aria-current="page"><svg><use href="#grid"/></svg>学习概览</a>
 <a class="nav-item" href="#records" data-view="records"><svg><use href="#list"/></svg>学习记录</a>
+<a class="nav-item" href="#review" data-view="review"><svg><use href="#sparkles"/></svg>AI 复盘</a>
 </nav>
 <div class="sidebar-note"><span class="note-line"></span><p>每一次投入，<br>都是向前的一小步。</p><span>专注当下，积累成长</span></div>
 <div class="profile"><span class="avatar">我</span><div><strong>我的学习空间</strong><span>记录 · 积累 · 回顾</span></div></div>
@@ -59,6 +61,21 @@
 </section>
 <section id="records-view" class="panel records-panel" hidden aria-label="学习记录"><div class="panel-heading"><div><h2>记录列表 <span class="count-badge" id="list-count">0</span></h2><p>保存收获，也记下遇到的问题</p></div><span class="sort-note">按学习日期倒序</span></div><div class="table-scroll"><table><thead><tr><th>日期</th><th>科目 / 学习内容</th><th>时长</th><th>遇到的困难</th><th>后续计划</th><th class="actions-heading">操作</th></tr></thead><tbody id="records-body"></tbody></table></div><div id="records-empty" class="empty" hidden><svg><use href="#book"/></svg><h3>这里还没有学习记录</h3><p>试试调整筛选条件，或记录一次新的学习。</p></div></section>
 </div>
+<section id="review-view" hidden aria-label="AI 学习复盘">
+<form id="review-form" class="panel review-controls">
+<div class="review-intro"><span class="review-icon"><svg><use href="#sparkles"/></svg></span><div><h2>回看投入，找到下一步</h2><p>根据真实学习记录，梳理收获、困难和练习方向。</p></div></div>
+<div class="review-date-fields"><div><label for="review-start">开始日期</label><input id="review-start" type="date"></div><span class="date-separator" aria-hidden="true">—</span><div><label for="review-end">结束日期</label><input id="review-end" type="date"></div><button id="generate-review" class="primary" type="submit"><svg><use href="#sparkles"/></svg><span id="generate-label">生成复盘</span></button><button id="reset-review" class="text-button" type="button">重置日期</button></div>
+<p class="review-help">日期可不填；留空时使用全部学习记录。每次点击生成都会调用 AI。</p>
+<p id="review-validation" class="inline-error" role="alert" hidden></p>
+</form>
+<div id="review-feedback" aria-live="polite">
+<section id="review-loading" class="panel review-loading" hidden role="status"><span class="review-spinner" aria-hidden="true"></span><h2>正在整理你的学习足迹</h2><p>AI 正在阅读记录、梳理收获和建议，可能需要一分钟左右。</p><p id="review-loading-range" class="review-help"></p><p class="review-help">可以切换到其他页面，生成完成后再回来查看。</p></section>
+<section id="review-empty" class="panel review-empty" hidden><span class="review-icon"><svg><use href="#book"/></svg></span><h2>这段时间还没有学习记录</h2><p id="review-empty-message"></p><p class="muted">调整日期范围，或先去记录一次学习。</p><a href="#records" class="view-all">查看学习记录 <svg><use href="#arrow"/></svg></a></section>
+<section id="review-error" class="error-panel" hidden role="alert"><h2>这次复盘没有生成成功</h2><p id="review-error-detail"></p><button id="retry-review" class="secondary" type="button">重试生成</button></section>
+<section id="review-result" class="panel review-result" hidden aria-labelledby="review-result-title"><div class="panel-heading"><div><p class="eyebrow">YOUR LEARNING REVIEW</p><h2 id="review-result-title">我的学习复盘</h2></div><span class="review-ai-tag"><svg><use href="#sparkles"/></svg>AI 生成</span></div><div class="review-meta"><span id="review-result-range"></span><time id="review-generated-at"></time></div><article id="review-body" class="review-body"></article><p class="review-footnote">建议基于所选范围的学习记录生成，可结合实际掌握情况调整。</p></section>
+<section id="review-placeholder" class="panel review-placeholder"><span class="review-icon"><svg><use href="#sparkles"/></svg></span><h2>给这一段学习，留一次回顾</h2><p>选择日期范围，点击「生成复盘」。<br>把零散的记录，整理成清晰的下一步。</p><div class="review-topics"><span>学习回顾</span><span>进展与困难</span><span>下一步行动</span></div></section>
+</div>
+</section>
 <footer>知时 <span>·</span> 让学习留下足迹</footer>
 </main>
 <dialog id="record-dialog" aria-labelledby="dialog-title"><form id="record-form"><div class="dialog-heading"><div><p class="eyebrow">LEARNING RECORD</p><h2 id="dialog-title">新增学习记录</h2></div><button class="icon-button" type="button" data-close="record-dialog" aria-label="关闭"><svg><use href="#close"/></svg></button></div>
