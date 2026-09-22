@@ -152,6 +152,7 @@ function setView(){
     state.loadId++; $('content').hidden = true; $('status').hidden = true;
     $('error-panel').hidden = true; $('filter-error').hidden = true;
     $('main').setAttribute('aria-busy','false');
+    loadReviewHistory();
   } else { loadData(); }
 }
 $('filters').addEventListener('submit',event=>{event.preventDefault();loadData();});
@@ -175,8 +176,8 @@ function appendReviewText(parent, text) {
     else parent.append(document.createTextNode(part));
   }
 }
-function renderReview(text) {
-  const body = $('review-body'); body.replaceChildren();
+function renderReview(text, body = $('review-body')) {
+  body.replaceChildren();
   let paragraph = null, list = null, code = null;
   for (const line of text.replace(/\r\n/g, '\n').split('\n')) {
     if (/^\s*```/.test(line)) {
@@ -226,6 +227,7 @@ async function generateReview() {
       const now = new Date(); $('review-generated-at').dateTime = now.toISOString();
       $('review-generated-at').textContent = '生成于 ' + now.toLocaleString('zh-CN', {month:'long', day:'numeric', hour:'2-digit', minute:'2-digit'});
       showReviewState('result');
+      loadReviewHistory();
     } else {
       const message = data?.message ?? data?.messsage;
       if (typeof message === 'string' && message.trim()) {$('review-empty-message').textContent = `${range}：${message}`; showReviewState('empty');}
@@ -246,4 +248,72 @@ function clearReviewResult() {
 }
 for (const id of ['review-start', 'review-end']) $(id).addEventListener('input', clearReviewResult);
 $('reset-review').addEventListener('click', () => {$('review-form').reset(); clearReviewResult();});
+
+// 历史只调用数据库接口，查看和刷新不会重新生成 AI 内容。
+let historyLoadId = 0, detailLoadId = 0, historyDeleteRow = null, historyDeleting = false;
+function historyRange(row) {
+  return row.start_date || row.end_date ? `${row.start_date || '最早记录'} 至 ${row.end_date || '不限结束日期'}` : '全部学习记录';
+}
+function historyTime(row) {return String(row.created_at || row.create_at || '').replace('T', ' ') || '未记录生成时间';}
+async function loadReviewHistory() {
+  const requestId = ++historyLoadId;
+  $('history-status').textContent = '正在读取复盘历史…';
+  $('history-status').hidden = false; $('history-list').replaceChildren();
+  $('history-count').textContent = '—';
+  try {
+    const rows = await api('/study/review/all');
+    if (requestId !== historyLoadId) return;
+    if (!Array.isArray(rows)) throw new Error('历史列表格式不正确，请检查后端返回值。');
+    $('history-count').textContent = rows.length;
+    $('history-status').hidden = true;
+    if (!rows.length) {$('history-list').append(empty('还没有保存的复盘', '生成一次复盘后，可以在这里重新查看。')); return;}
+    rows.sort((a,b) => Number(b.id) - Number(a.id));
+    for (const row of rows) {
+      const card = element('article', 'history-row');
+      const info = element('div', 'history-info');
+      info.append(element('h3', '', historyRange(row)), element('p', 'muted', `生成于 ${historyTime(row)} · #${row.id}`));
+      info.append(element('p', 'history-preview', String(row.content || '').replace(/[#*`]/g, '').slice(0, 150)));
+      const actions = element('div', 'history-actions');
+      const open = element('button', 'secondary', '查看复盘'); open.type = 'button';
+      open.addEventListener('click', () => openHistoryDetail(row));
+      const remove = action('trash', `删除复盘 ${row.id}`, () => {
+        historyDeleteRow = row; $('history-delete-description').textContent = `${historyRange(row)} · ${historyTime(row)}`;
+        $('history-delete-error').hidden = true; $('history-delete').showModal();
+      }, 'delete');
+      actions.append(open, remove); card.append(info, actions); $('history-list').append(card);
+    }
+  } catch (error) {
+    if (requestId !== historyLoadId) return;
+    $('history-status').textContent = `${error.message} 可点击「刷新列表」重试。`;
+  }
+}
+async function openHistoryDetail(row) {
+  const requestId = ++detailLoadId;
+  $('history-detail-title').textContent = `历史复盘 #${row.id}`;
+  $('history-detail-meta').textContent = historyRange(row);
+  $('history-detail-body').replaceChildren(); $('history-detail-status').textContent = '正在读取复盘…';
+  $('history-detail').showModal();
+  try {
+    const data = await api(`/study/review/${encodeURIComponent(row.id)}`);
+    if (requestId !== detailLoadId) return;
+    if (typeof data?.content !== 'string') throw new Error(data?.message || '没有收到有效的复盘内容。');
+    $('history-detail-meta').textContent = `${historyRange(data)} · 生成于 ${historyTime(data)}`;
+    renderReview(data.content, $('history-detail-body')); $('history-detail-status').textContent = '';
+  } catch (error) {if (requestId === detailLoadId) $('history-detail-status').textContent = error.message;}
+}
+$('history-refresh').addEventListener('click', loadReviewHistory);
+$('history-detail-close').addEventListener('click', () => $('history-detail').close());
+$('history-detail').addEventListener('close', () => {detailLoadId++;});
+$('history-delete-cancel').addEventListener('click', () => {if (!historyDeleting) $('history-delete').close();});
+$('history-delete').addEventListener('cancel', event => {if (historyDeleting) event.preventDefault();});
+$('history-delete-confirm').addEventListener('click', async () => {
+  if (historyDeleting || !historyDeleteRow) return;
+  historyDeleting = true; setDialogBusy($('history-delete'), true);
+  $('history-delete-confirm').textContent = '正在删除…'; $('history-delete-error').hidden = true;
+  try {
+    await api(`/study/review/delete/${encodeURIComponent(historyDeleteRow.id)}`, {method:'DELETE'});
+    $('history-delete').close(); notify('复盘已删除'); await loadReviewHistory();
+  } catch (error) {$('history-delete-error').textContent = error.message; $('history-delete-error').hidden = false;}
+  finally {historyDeleting = false; setDialogBusy($('history-delete'), false); $('history-delete-confirm').textContent = '确认删除';}
+});
 setView();

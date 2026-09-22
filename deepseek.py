@@ -4,7 +4,7 @@ def deepseek_api(msg):
         response = requests.post(
             url= "https://api.deepseek.com/chat/completions",
             headers= {
-                "Authorization": "Bearer sk-b1108d09862945ceb92f34a2eba5b356",
+                "Authorization": "Bearer <API-Key>",
                 "Content-Type" : "application/json"
             },
             json={

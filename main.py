@@ -6,7 +6,6 @@ from pydantic import BaseModel, Field
 from data_base import get_connection
 from deepseek import deepseek_api
 import json
-from save_load import save_data,load_data
 
 
 logging.basicConfig(
@@ -40,6 +39,11 @@ class StudyRecord(BaseModel):
     Duration_minutes: int = Field(ge=0)
     Difficulty: str = Field(max_length=1000)
     Plan_Comment: str = Field(max_length=1000)
+
+class ReviewList(BaseModel):
+    start_date: datetime.date 
+    end_date: datetime.date
+    content:str = Field(min_length=1)
 
 # @app.get("/study")
 # def get_data():
@@ -311,8 +315,9 @@ def review(
             cursor.execute(sql, params)
             data = cursor.fetchall()
         except Exception as error:
-            logging.exception("查询数据失败")
-            raise HTTPException(status_code=500, detail="查询数据失败") from error
+            logging.exception("新增数据失败")
+            rollback_quietly(conn)
+            raise HTTPException(status_code=500, detail="新增数据失败") from error
         finally:
             conn.close()
     if not data:
@@ -329,17 +334,73 @@ def review(
     }
     msg = [system,question]
     reply = deepseek_api(msg)
-    history = load_data()
-    history.append(question)
-    history.append({
-        "role":"assistant",
-        "content":reply
-    })
-    save_data(history)
+    conn = get_connection()
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute("INSERT INTO review_history (start_date, end_date, content) VALUES (%s, %s, %s)", (start_date, end_date, reply))
+            conn.commit()
+    except Exception as error:
+        logging.exception("数据查询失败")
+        rollback_quietly(conn)
+        raise HTTPException(status_code=500, detail="数据查询失败")
+    finally:
+        conn.close()
+
     return {"review": reply}
 
-        
-            
+@app.get("/study/review/all")
+def review_all():
+    conn = get_connection()
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute("SELECT * FROM review_history")
+            data = cursor.fetchall()
+    except Exception as error:
+        logging.exception("查询数据失败")  
+        raise HTTPException(status_code=500, detail="查询数据失败") from error
+    finally:
+        conn.close()
+    return data
+
+@app.get("/study/review/{id}")
+def review_one(id:int):
+    conn = get_connection()
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute("SELECT * FROM review_history WHERE id = %s", (id, ))
+            data = cursor.fetchone()
+    except Exception as error:
+        logging.exception("查询数据失败")
+        raise HTTPException(status_code=500, detail="数据查询失败") from error
+    finally:
+        conn.close()
+    if data is None:
+        raise HTTPException(status_code=404, detail="复盘不存在")
+    return data
+
+@app.delete("/study/review/delete/{id}")
+def review_del(id:int):
+    conn = get_connection()
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute("DELETE FROM review_history WHERE id = %s", (id, ))
+            if cursor.rowcount == 0:
+                raise HTTPException(status_code=404, detail="复盘不存在")
+            conn.commit()
+    except HTTPException:
+            rollback_quietly(conn)
+            raise
+    except Exception as error:
+        logging.exception("删除数据失败")
+        rollback_quietly(conn)
+        raise HTTPException(status_code=500, detail="删除数据失败") from error
+    finally:
+        conn.close()
+    return {
+        "ID": id,
+        "message": "删除数据成功"
+    }
+
 
 # 网页与接口共用当前服务，前端文件以 main.py 所在目录为基准查找。
 from pathlib import Path
